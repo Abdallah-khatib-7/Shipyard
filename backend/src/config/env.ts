@@ -58,6 +58,9 @@ export const env = {
   cloudflare: {
     apiToken: required("CLOUDFLARE_API_TOKEN"),
     zoneId: required("CLOUDFLARE_ZONE_ID"),
+    accountId: required("CLOUDFLARE_ACCOUNT_ID"),
+    kvNamespaceId: required("CLOUDFLARE_KV_NAMESPACE_ID"),
+    kvApiToken: required("CLOUDFLARE_KV_API_TOKEN"),
   },
 
   build: {

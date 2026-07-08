@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import { pool } from "../../config/db.js";
 import { deletePrefix } from "../../services/s3.service.js";
-import { deleteSubdomainRecord } from "../../services/dns.service.js";
+import { removeDeploymentRoute } from "../../services/dns.service.js";
 import type { DeploymentRow } from "../../types/models.js";
 
 function slugify(repoFullName: string): string {
@@ -25,15 +25,14 @@ export interface CreateDeploymentInput {
   repoId: number;
   subdomain: string;
   s3Prefix: string;
-  cloudflareRecordId: string;
 }
 
 export async function createDeployment(input: CreateDeploymentInput): Promise<void> {
   await pool.query("UPDATE deployments SET is_current = FALSE WHERE repo_id = ?", [input.repoId]);
   await pool.query(
-    `INSERT INTO deployments (id, build_id, repo_id, subdomain, s3_prefix, cloudflare_record_id, is_current)
-     VALUES (?, ?, ?, ?, ?, ?, TRUE)`,
-    [input.id, input.buildId, input.repoId, input.subdomain, input.s3Prefix, input.cloudflareRecordId],
+    `INSERT INTO deployments (id, build_id, repo_id, subdomain, s3_prefix, is_current)
+     VALUES (?, ?, ?, ?, ?, TRUE)`,
+    [input.id, input.buildId, input.repoId, input.subdomain, input.s3Prefix],
   );
 }
 
@@ -50,12 +49,10 @@ export async function getDeploymentById(id: string): Promise<DeploymentRow | nul
   return rows[0] ?? null;
 }
 
-/** Tears down a deployment's external resources (S3 objects, DNS record) and its DB row. */
+/** Tears down a deployment's external resources (S3 objects, edge route) and its DB row. */
 export async function destroyDeployment(deployment: DeploymentRow): Promise<void> {
   await deletePrefix(deployment.s3_prefix);
-  if (deployment.cloudflare_record_id) {
-    await deleteSubdomainRecord(deployment.cloudflare_record_id);
-  }
+  await removeDeploymentRoute(deployment.subdomain);
   await pool.query("DELETE FROM deployments WHERE id = ?", [deployment.id]);
 }
 

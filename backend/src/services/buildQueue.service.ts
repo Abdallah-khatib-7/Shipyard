@@ -6,7 +6,7 @@ import { env } from "../config/env.js";
 import { pool } from "../config/db.js";
 import { runBuild } from "./buildRunner.service.js";
 import { uploadDirectory } from "./s3.service.js";
-import { createSubdomainRecord } from "./dns.service.js";
+import { registerDeploymentRoute } from "./dns.service.js";
 import { createDeployment, generateSubdomain } from "../modules/deployments/deployment.service.js";
 import { getRepoById } from "../modules/repos/repo.service.js";
 import { getUserGithubToken } from "../modules/auth/auth.service.js";
@@ -137,14 +137,13 @@ async function processBuildJob(job: Job<BuildJobData>): Promise<void> {
     const s3Prefix = `deployments/${buildId}`;
 
     await uploadDirectory(result.outputLocalDir, s3Prefix);
-    const cloudflareRecordId = await createSubdomainRecord(subdomain);
+    await registerDeploymentRoute(subdomain, s3Prefix);
     await createDeployment({
       id: randomUUID(),
       buildId,
       repoId: repo.id,
       subdomain,
       s3Prefix,
-      cloudflareRecordId,
     });
 
     await fs.rm(result.outputLocalDir, { recursive: true, force: true });

@@ -47,6 +47,7 @@ export interface DeploymentRow extends RowDataPacket {
   repo_id: number;
   subdomain: string;
   s3_prefix: string;
+  /** legacy DNS-record id, no longer written; only present on rows created before the edge routing migration */
   cloudflare_record_id: string | null;
   is_current: number;
   created_at: Date;

@@ -72,6 +72,8 @@ CREATE TABLE IF NOT EXISTS deployments (
   repo_id             INT UNSIGNED NOT NULL,
   subdomain           VARCHAR(255) NOT NULL,
   s3_prefix           VARCHAR(512) NOT NULL,
+  -- legacy: DNS-record id from the old per-subdomain CNAME approach, unused now that
+  -- routing is edge-side (Worker + KV); kept nullable for historical rows only
   cloudflare_record_id VARCHAR(255) NULL,
   -- the currently-live deployment for a repo; older ones are cleanup candidates
   is_current          BOOLEAN NOT NULL DEFAULT TRUE,
