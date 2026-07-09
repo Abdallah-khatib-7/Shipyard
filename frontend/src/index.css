@@ -1,0 +1,126 @@
+@import "tailwindcss";
+
+@theme {
+  /* Hull: base background, cool graphite-blue steel */
+  --color-hull: oklch(21% 0.012 250);
+  --color-hull-deep: oklch(19% 0.012 250);
+
+  /* Deckplate: elevated surface, one step up from hull */
+  --color-deckplate: oklch(25% 0.013 250);
+  --color-deckplate-raised: oklch(29% 0.014 250);
+
+  /* Signal: primary accent — amber CTA */
+  --color-signal: oklch(68% 0.19 45);
+  --color-signal-dim: oklch(56% 0.17 45);
+
+  /* Beacon: gold — live status, hazard stripes, the pulse-when-deployed color */
+  --color-beacon: oklch(78% 0.18 95);
+  --color-beacon-dim: oklch(65% 0.15 95);
+
+  /* Route: blue — technical/secondary accent for commit shas, routing, ids */
+  --color-route: oklch(68% 0.1 230);
+  --color-route-dim: oklch(56% 0.09 230);
+
+  /* Hazard: failed builds, errors (not in the source design — kept for app states) */
+  --color-hazard: oklch(58% 0.19 25);
+  --color-hazard-dim: oklch(48% 0.16 25);
+
+  /* Manifest: body text on dark, warm paper white */
+  --color-manifest: oklch(93% 0.01 90);
+  --color-manifest-dim: oklch(75% 0.01 90);
+  --color-manifest-faint: oklch(58% 0.01 90);
+
+  --color-line: oklch(34% 0.015 250);
+  --color-line-soft: oklch(32% 0.015 250);
+
+  --font-display: "Big Shoulders Display", "Arial Narrow", sans-serif;
+  --font-body: "IBM Plex Sans", "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
+
+  --animate-pulse-slow: pulse-slow 1.6s ease-in-out infinite;
+}
+
+@keyframes blink-cursor {
+  0%,
+  49% {
+    opacity: 1;
+  }
+  50%,
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes pulse-slow {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
+
+@layer base {
+  * {
+    border-color: var(--color-line);
+  }
+
+  html {
+    color-scheme: dark;
+  }
+
+  body {
+    margin: 0;
+    background-color: var(--color-hull);
+    color: var(--color-manifest);
+    font-family: var(--font-body);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  ::selection {
+    background-color: var(--color-signal);
+    color: var(--color-hull-deep);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-signal);
+    outline-offset: 2px;
+  }
+
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: var(--color-hull);
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: var(--color-deckplate-raised);
+    border-radius: 0;
+  }
+}
+
+@layer utilities {
+  /* Hazard-stripe accent — used sparingly as a decorative edge, never as a background */
+  .stripe {
+    background-image: repeating-linear-gradient(
+      135deg,
+      var(--color-beacon) 0 14px,
+      var(--color-hull-deep) 14px 28px
+    );
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
