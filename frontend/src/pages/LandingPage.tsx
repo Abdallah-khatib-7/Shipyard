@@ -1,7 +1,5 @@
-import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { motion, useInView } from "framer-motion";
-import NumberFlow from "@number-flow/react";
+import { motion } from "framer-motion";
 import { PipelineScene } from "@/components/PipelineScene";
 import { MagneticButton } from "@/components/MagneticButton";
 import { Button } from "@/components/ui/button";
@@ -12,6 +10,12 @@ const NAV_LINKS = [
   { href: "#config", label: "Config" },
   { href: "#compare", label: "Compare" },
 ];
+
+const RECENT_ACTIVITY = [
+  { repo: "acme/storefront", subdomain: "storefront-4f2a.shpit.uk", status: "success" },
+  { repo: "kip/docs-site", subdomain: "docs-site-9be1.shpit.uk", status: "building" },
+  { repo: "rho/marketing", subdomain: "marketing-2c7f.shpit.uk", status: "success" },
+] as const;
 
 const HOW_IT_WORKS: { title: string; body: string; code: string; tone: "signal" | "beacon" | "route" }[] = [
   {
@@ -90,26 +94,22 @@ function SectionLabel({ children, tone = "route" }: { children: string; tone?: "
   );
 }
 
-function BuildCounter() {
-  const ref = useRef<HTMLSpanElement>(null);
-  const inView = useInView(ref, { once: true });
-  const [value, setValue] = useState(0);
-
-  useEffect(() => {
-    if (inView) setValue(248);
-  }, [inView]);
-
-  return <span ref={ref}><NumberFlow value={value} /></span>;
+function Wordmark() {
+  return (
+    <div className="flex items-center gap-2.5">
+      <span className="flex h-7 w-7 items-center justify-center bg-signal font-mono text-xs font-bold text-hull-deep">
+        SY
+      </span>
+      <span className="font-display text-xl font-extrabold uppercase tracking-wide text-manifest">Shipyard</span>
+    </div>
+  );
 }
 
 export function LandingPage() {
   return (
     <div className="bg-hull">
       <nav className="sticky top-0 z-20 flex items-center justify-between border-b border-line-soft bg-hull/90 px-5 py-4 backdrop-blur md:px-16 md:py-5">
-        <div className="flex items-center gap-2.5">
-          <span className="h-3.5 w-3.5 bg-signal" />
-          <span className="font-display text-xl font-extrabold uppercase tracking-wide text-manifest">Shipyard</span>
-        </div>
+        <Wordmark />
         <div className="flex items-center gap-5 md:gap-8">
           {NAV_LINKS.map((link) => (
             <a
@@ -128,29 +128,44 @@ export function LandingPage() {
 
       <section className="relative overflow-hidden px-5 pb-12 pt-14 md:px-16 md:pb-20 md:pt-28">
         <div className="stripe absolute right-0 top-0 h-3.5 w-56 opacity-90" />
-        <div className="mx-auto max-w-4xl">
-          <div className="mb-7 inline-flex items-center gap-2 border border-beacon/40 px-3 py-1.5 font-mono text-[13px] text-beacon">
-            <span className="h-1.5 w-1.5 rounded-full bg-beacon animate-pulse-slow" />
-            build #<BuildCounter /> · live in 41s
+        <div className="mx-auto grid max-w-6xl items-center gap-12 lg:grid-cols-[1.2fr_1fr] lg:gap-16">
+          <div>
+            <h1 className="max-w-[16ch] font-display text-[42px] font-extrabold uppercase leading-[0.94] tracking-wide text-manifest md:text-[88px]">
+              Push to main.
+              <br />
+              It ships itself.
+            </h1>
+            <p className="mt-7 max-w-2xl text-[17px] leading-relaxed text-manifest-dim md:text-xl">
+              A webhook fires the instant you push. An isolated container builds your repo with nothing else
+              running on it. The static output lands in S3 and goes live on your own subdomain — while the log
+              streams to your browser line by line.
+            </p>
+            <div className="mt-8 flex flex-wrap items-center gap-4">
+              <MagneticButton>
+                <Button asChild size="lg">
+                  <Link to="/login">Connect GitHub repo</Link>
+                </Button>
+              </MagneticButton>
+              <div className="font-mono text-sm text-manifest-faint">
+                https://<span className="text-manifest">storefront</span>.shpit.uk
+              </div>
+            </div>
           </div>
-          <h1 className="max-w-[16ch] font-display text-[42px] font-extrabold uppercase leading-[0.94] tracking-wide text-manifest md:text-[88px]">
-            Push to main.
-            <br />
-            It ships itself.
-          </h1>
-          <p className="mt-7 max-w-2xl text-[17px] leading-relaxed text-manifest-dim md:text-xl">
-            A webhook fires the instant you push. An isolated container builds your repo with nothing else
-            running on it. The static output lands in S3 and goes live on your own subdomain — while the log
-            streams to your browser line by line.
-          </p>
-          <div className="mt-8 flex flex-wrap items-center gap-4">
-            <MagneticButton>
-              <Button asChild size="lg">
-                <Link to="/login">Connect GitHub repo</Link>
-              </Button>
-            </MagneticButton>
-            <div className="font-mono text-sm text-manifest-faint">
-              https://<span className="text-manifest">storefront</span>.shpit.uk
+
+          <div className="border border-line bg-deckplate">
+            <div className="border-b border-line px-4 py-3 font-mono text-xs uppercase tracking-[0.06em] text-manifest-faint">
+              Recent activity
+            </div>
+            <div className="divide-y divide-line-soft font-mono text-[13px]">
+              {RECENT_ACTIVITY.map((row) => (
+                <div key={row.repo} className="flex items-center justify-between gap-3 px-4 py-3.5">
+                  <span className="truncate text-manifest-dim">{row.repo}</span>
+                  <span className="truncate text-route">{row.subdomain}</span>
+                  <span className={cn("shrink-0", row.status === "success" ? "text-beacon" : "text-signal")}>
+                    {row.status}
+                  </span>
+                </div>
+              ))}
             </div>
           </div>
         </div>
@@ -254,10 +269,7 @@ export function LandingPage() {
       </section>
 
       <footer className="flex flex-wrap items-center justify-between gap-4 border-t border-line-soft px-5 py-7 md:px-16">
-        <div className="flex items-center gap-2.5">
-          <span className="h-2.5 w-2.5 bg-signal" />
-          <span className="font-display text-base font-extrabold uppercase tracking-wide text-manifest">Shipyard</span>
-        </div>
+        <Wordmark />
         <span className="font-mono text-xs text-manifest-faint">your-repo.shpit.uk</span>
         <span className="text-xs text-manifest-faint">© {new Date().getFullYear()} Shipyard</span>
       </footer>

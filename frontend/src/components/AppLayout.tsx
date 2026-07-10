@@ -15,7 +15,9 @@ const NAV_ITEMS = [
 function Wordmark() {
   return (
     <div className="flex items-center gap-2">
-      <span className="h-2.5 w-2.5 bg-signal" />
+      <span className="flex h-6 w-6 items-center justify-center bg-signal font-mono text-[10px] font-bold text-hull-deep">
+        SY
+      </span>
       <span className="font-display text-lg font-semibold tracking-wide text-manifest">SHIPYARD</span>
     </div>
   );
