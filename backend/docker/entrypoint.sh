@@ -1,5 +1,6 @@
 #!/bin/sh
 set -eu
+set -o pipefail
 
 WORKDIR=/workspace/repo
 mkdir -p "$WORKDIR"
