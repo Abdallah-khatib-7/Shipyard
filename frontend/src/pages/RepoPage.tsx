@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, Play, Lock, Globe } from "lucide-react";
+import { ArrowLeft, Play, Lock, Globe, ExternalLink } from "lucide-react";
 import { api, type Repo, type BuildRow, type Deployment } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -18,6 +18,7 @@ export function RepoPage() {
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [triggering, setTriggering] = useState(false);
+  const [confirmingDisconnect, setConfirmingDisconnect] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
@@ -59,6 +60,10 @@ export function RepoPage() {
 
   async function handleDisconnect() {
     if (!repo) return;
+    if (!confirmingDisconnect) {
+      setConfirmingDisconnect(true);
+      return;
+    }
     await api.repos.disconnect(repo.id).catch(() => {});
     navigate("/dashboard", { replace: true });
   }
@@ -91,12 +96,21 @@ export function RepoPage() {
       <div className="mt-4 flex flex-wrap items-start justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
+            
             {repo.is_private ? (
               <Lock className="h-4 w-4 text-manifest-faint" />
             ) : (
               <Globe className="h-4 w-4 text-manifest-faint" />
             )}
             <h1 className="font-mono text-2xl text-manifest">{repo.full_name}</h1>
+            <a
+              href={`https://github.com/${repo.full_name}`}
+              target="_blank"
+              rel="noreferrer"
+              className="text-manifest-faint hover:text-manifest"
+            >
+              <ExternalLink className="h-3.5 w-3.5" />
+            </a>
           </div>
           <p className="mt-1 font-mono text-xs text-manifest-dim">default branch: {repo.default_branch}</p>
         </div>
@@ -105,8 +119,16 @@ export function RepoPage() {
             <Play className="h-3.5 w-3.5" /> {triggering ? "Starting…" : "Trigger build"}
           </Button>
           <Button onClick={handleDisconnect} variant="destructive" size="sm">
-            Disconnect
+            {confirmingDisconnect ? "Confirm disconnect?" : "Disconnect"}
           </Button>
+          {confirmingDisconnect && (
+            <button
+              onClick={() => setConfirmingDisconnect(false)}
+              className="text-xs text-manifest-faint hover:text-manifest"
+            >
+              Cancel
+            </button>
+          )}
         </div>
       </div>
 
