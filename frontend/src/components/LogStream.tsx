@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { Check, Copy } from "lucide-react";
 import { api, type BuildStatus } from "@/lib/api";
 import { useSocket } from "@/context/SocketContext";
 import { cn } from "@/lib/utils";
@@ -20,6 +21,7 @@ function lineTone(line: string): string {
 export function LogStream({ buildId, status, onStatusChange, className }: LogStreamProps) {
   const [lines, setLines] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
+  const [copied, setCopied] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const stickToBottomRef = useRef(true);
   const { subscribeToBuild } = useSocket();
