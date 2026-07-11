@@ -5,6 +5,7 @@ import { pipeline } from "node:stream/promises";
 import Docker from "dockerode";
 import * as tar from "tar-stream";
 import { env } from "../config/env.js";
+import { createLogSanitizer } from "../utils/logSanitizer.js";
 
 const docker = new Docker();
 
@@ -117,7 +118,15 @@ export async function runBuild(input: BuildRunnerInput, onLog: LogHandler): Prom
 
   try {
     const logStream = await container.attach({ stream: true, stdout: true, stderr: true });
-    logStream.on("data", (chunk: Buffer) => onLog(chunk.toString("utf-8")));
+    const sanitizer = createLogSanitizer();
+    logStream.on("data", (chunk: Buffer) => {
+      const cleaned = sanitizer.push(chunk.toString("utf-8"));
+      if (cleaned) onLog(cleaned);
+    });
+    logStream.on("end", () => {
+      const cleaned = sanitizer.flush();
+      if (cleaned) onLog(cleaned);
+    });
 
     await container.start();
 
