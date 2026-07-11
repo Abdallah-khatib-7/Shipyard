@@ -1,16 +1,33 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { Plus, Lock, Globe, X } from "lucide-react";
-import { api, type GithubRepoSummary, type Repo } from "@/lib/api";
+import { Plus, Lock, Globe, X, Play } from "lucide-react";
+import { api, type GithubRepoSummary, type Repo, type BuildRow, type BuildStatus } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
+import { BuildStatusBadge } from "@/components/BuildStatusBadge";
+import { formatRelativeTime } from "@/lib/utils";
 
-function RepoCard({ repo, onDisconnect }: { repo: Repo; onDisconnect: (id: number) => void }) {
+interface RepoWithStatus extends Repo {
+  lastBuild: BuildRow | null;
+  liveUrl: string | null;
+}
+
+function RepoCard({
+  repo,
+  onDisconnect,
+  onTrigger,
+  triggeringId,
+}: {
+  repo: RepoWithStatus;
+  onDisconnect: (id: number) => void;
+  onTrigger: (id: number) => void;
+  triggeringId: number | null;
+}) {
   return (
-    <Card className="p-4">
+    <Card className="flex flex-col p-4">
       <div className="flex items-start justify-between gap-3">
         <Link to={`/repos/${repo.id}`} className="min-w-0 flex-1">
           <p className="truncate font-mono text-sm text-manifest hover:text-signal">{repo.full_name}</p>
@@ -22,14 +39,44 @@ function RepoCard({ repo, onDisconnect }: { repo: Repo; onDisconnect: (id: numbe
           <Globe className="h-3.5 w-3.5 shrink-0 text-manifest-faint" />
         )}
       </div>
-      <div className="mt-4 flex items-center justify-between">
-        <Link to={`/repos/${repo.id}`} className="text-xs text-beacon underline-offset-4 hover:underline">
-          View builds
-        </Link>
+
+      <div className="mt-3 flex items-center justify-between border-t border-line-soft pt-3">
+        {repo.lastBuild ? (
+          <div className="min-w-0">
+            <BuildStatusBadge status={repo.lastBuild.status as BuildStatus} />
+            <p className="mt-1 font-mono text-xs text-manifest-faint">
+              {formatRelativeTime(repo.lastBuild.created_at)}
+            </p>
+          </div>
+        ) : (
+          <p className="font-mono text-xs text-manifest-faint">no builds yet</p>
+        )}
         <button
-          onClick={() => onDisconnect(repo.id)}
-          className="text-xs text-manifest-faint hover:text-hazard"
+          onClick={() => onTrigger(repo.id)}
+          disabled={triggeringId === repo.id}
+          className="flex items-center gap-1.5 font-mono text-xs text-manifest-dim hover:text-signal disabled:opacity-40"
         >
+          <Play className="h-3 w-3" /> {triggeringId === repo.id ? "starting…" : "build"}
+        </button>
+      </div>
+
+      {repo.liveUrl && (
+        <a
+          href={repo.liveUrl}
+          target="_blank"
+          rel="noreferrer"
+          className="mt-3 flex items-center gap-1.5 border-t border-line-soft pt-3 font-mono text-xs text-beacon underline-offset-4 hover:underline"
+        >
+          <span className="h-1.5 w-1.5 rounded-full bg-beacon animate-pulse-slow" />
+          {repo.liveUrl.replace(/^https?:\/\//, "")}
+        </a>
+      )}
+
+      <div className="mt-3 flex items-center justify-between border-t border-line-soft pt-3">
+        <Link to={`/repos/${repo.id}`} className="text-xs text-manifest-dim hover:text-manifest">
+          View details
+        </Link>
+        <button onClick={() => onDisconnect(repo.id)} className="text-xs text-manifest-faint hover:text-hazard">
           Disconnect
         </button>
       </div>
@@ -38,12 +85,13 @@ function RepoCard({ repo, onDisconnect }: { repo: Repo; onDisconnect: (id: numbe
 }
 
 export function DashboardPage() {
-  const [connected, setConnected] = useState<Repo[]>([]);
+  const [connected, setConnected] = useState<RepoWithStatus[]>([]);
   const [loading, setLoading] = useState(true);
   const [panelOpen, setPanelOpen] = useState(false);
   const [available, setAvailable] = useState<GithubRepoSummary[] | null>(null);
   const [availableLoading, setAvailableLoading] = useState(false);
   const [connectingId, setConnectingId] = useState<number | null>(null);
+  const [triggeringId, setTriggeringId] = useState<number | null>(null);
   const [search, setSearch] = useState("");
   const [hideConnected, setHideConnected] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -52,7 +100,23 @@ export function DashboardPage() {
     setLoading(true);
     api.repos
       .listConnected()
-      .then(({ repos }) => setConnected(repos))
+      .then(async ({ repos }) => {
+        const withStatus = await Promise.all(
+          repos.map(async (repo) => {
+            const [buildsRes, deploymentsRes] = await Promise.all([
+              api.builds.listForRepo(repo.id).catch(() => ({ builds: [] as BuildRow[] })),
+              api.deployments.listForRepo(repo.id).catch(() => ({ deployments: [] })),
+            ]);
+            const current = deploymentsRes.deployments.find((d) => d.isCurrent);
+            return {
+              ...repo,
+              lastBuild: buildsRes.builds[0] ?? null,
+              liveUrl: current?.url ?? null,
+            };
+          }),
+        );
+        setConnected(withStatus);
+      })
       .catch(() => setErrorMessage("Couldn't load your connected repos."))
       .finally(() => setLoading(false));
   }
@@ -89,9 +153,20 @@ export function DashboardPage() {
     setConnected((prev) => prev.filter((r) => r.id !== id));
     try {
       await api.repos.disconnect(id);
-      setAvailable((prev) => prev ?? null);
     } catch {
       loadConnected();
+    }
+  }
+
+  async function handleTrigger(id: number) {
+    setTriggeringId(id);
+    try {
+      await api.builds.trigger(id);
+      loadConnected();
+    } catch (err) {
+      setErrorMessage(err instanceof Error ? err.message : "Couldn't start a build.");
+    } finally {
+      setTriggeringId(null);
     }
   }
 
@@ -102,6 +177,8 @@ export function DashboardPage() {
       .filter((r) => r.fullName.toLowerCase().includes(search.toLowerCase()));
   }, [available, hideConnected, search]);
 
+  const liveCount = connected.filter((r) => r.liveUrl).length;
+
   return (
     <div>
       <div className="flex flex-wrap items-center justify-between gap-4">
@@ -111,9 +188,18 @@ export function DashboardPage() {
         </Button>
       </div>
 
-      {errorMessage && (
-        <p className="mt-4 font-mono text-xs text-hazard">{errorMessage}</p>
+      {!loading && connected.length > 0 && (
+        <div className="mt-4 flex gap-6 font-mono text-xs text-manifest-dim">
+          <span>
+            <span className="text-manifest">{connected.length}</span> connected
+          </span>
+          <span>
+            <span className="text-beacon">{liveCount}</span> live
+          </span>
+        </div>
       )}
+
+      {errorMessage && <p className="mt-4 font-mono text-xs text-hazard">{errorMessage}</p>}
 
       {panelOpen && (
         <Card className="mt-6 p-4">
@@ -183,7 +269,13 @@ export function DashboardPage() {
         ) : (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {connected.map((repo) => (
-              <RepoCard key={repo.id} repo={repo} onDisconnect={handleDisconnect} />
+              <RepoCard
+                key={repo.id}
+                repo={repo}
+                onDisconnect={handleDisconnect}
+                onTrigger={handleTrigger}
+                triggeringId={triggeringId}
+              />
             ))}
           </div>
         )}
