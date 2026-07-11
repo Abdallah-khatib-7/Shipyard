@@ -108,7 +108,7 @@ function Wordmark() {
 export function LandingPage() {
   return (
     <div className="bg-hull">
-      <nav className="sticky top-0 z-20 flex items-center justify-between border-b border-line-soft bg-hull/90 px-5 py-4 backdrop-blur md:px-16 md:py-5">
+      <nav className=" inset-x-0 top-0 z-20 flex items-center justify-between border-b border-line-soft bg-hull px-5 py-4 md:px-16 md:py-5">
         <Wordmark />
         <div className="flex items-center gap-5 md:gap-8">
           {NAV_LINKS.map((link) => (
@@ -125,6 +125,21 @@ export function LandingPage() {
           </Button>
         </div>
       </nav>
+
+      {/* Invisible clone of the nav above, in normal flow — reserves its exact height so page content doesn't jump under the fixed nav */}
+      <div aria-hidden className="invisible flex items-center justify-between px-5 py-4 md:px-16 md:py-5">
+        <Wordmark />
+        <div className="flex items-center gap-5 md:gap-8">
+          {NAV_LINKS.map((link) => (
+            <a key={link.href} href={link.href} className="hidden text-sm font-medium md:inline">
+              {link.label}
+            </a>
+          ))}
+          <Button asChild size="sm">
+            <span>Connect repo</span>
+          </Button>
+        </div>
+      </div>
 
       <section className="relative overflow-hidden px-5 pb-12 pt-14 md:px-16 md:pb-20 md:pt-28">
         <div className="stripe absolute right-0 top-0 h-3.5 w-56 opacity-90" />
