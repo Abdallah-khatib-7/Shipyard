@@ -65,13 +65,30 @@ export function LogStream({ buildId, status, onStatusChange, className }: LogStr
     stickToBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 48;
   }
 
+  async function handleCopy() {
+    await navigator.clipboard.writeText(lines.join("\n"));
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  }
+
   const isLive = status === "queued" || status === "running";
 
   return (
     <div className={cn("flex flex-col overflow-hidden rounded-[3px] border border-line bg-hull-deep", className)}>
       <div className="flex items-center justify-between border-b border-line bg-deckplate px-3 py-2">
         <span className="font-mono text-xs text-manifest-dim">build log</span>
-        <span className="font-mono text-xs text-manifest-faint">{lines.length} lines</span>
+        <div className="flex items-center gap-3">
+          <span className="font-mono text-xs text-manifest-faint">{lines.length} lines</span>
+          <button
+            type="button"
+            onClick={handleCopy}
+            disabled={lines.length === 0}
+            aria-label="Copy log output"
+            className="text-manifest-faint transition-colors hover:text-manifest disabled:pointer-events-none disabled:opacity-40"
+          >
+            {copied ? <Check className="h-3.5 w-3.5 text-beacon" /> : <Copy className="h-3.5 w-3.5" />}
+          </button>
+        </div>
       </div>
       <div
         ref={containerRef}
