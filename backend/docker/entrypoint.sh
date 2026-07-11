@@ -55,7 +55,25 @@ if [ -z "$BUILD_CMD" ]; then
 fi
 
 echo "[shipyard] installing dependencies: $INSTALL_CMD"
-eval "$INSTALL_CMD"
+INSTALL_LOG="$(mktemp)"
+if eval "$INSTALL_CMD" 2>&1 | tee "$INSTALL_LOG"; then
+  :
+else
+  INSTALL_EXIT=$?
+  # npm ci refuses to run when package-lock.json doesn't fully match package.json
+  # for this platform - most commonly because optional, platform-specific deps
+  # (e.g. Linux-only native binaries) were never recorded in a lockfile generated
+  # on Windows/Mac. That's a legitimate cross-platform gap, not a broken repo, so
+  # fall back to npm install rather than failing the build outright. Any other
+  # install failure (including npm install itself, below) is real and propagates.
+  if grep -q "npm error code EUSAGE" "$INSTALL_LOG" && grep -q "in sync" "$INSTALL_LOG"; then
+    echo "[shipyard] package-lock.json didn't match for this platform - reinstalling with npm install instead of npm ci"
+    eval "npm install"
+  else
+    exit "$INSTALL_EXIT"
+  fi
+fi
+rm -f "$INSTALL_LOG"
 
 echo "[shipyard] running build: $BUILD_CMD"
 eval "$BUILD_CMD"
