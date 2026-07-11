@@ -4,11 +4,11 @@
 ![Express](https://img.shields.io/badge/Express-5-000000?style=for-the-badge&logo=express&logoColor=white)
 ![React](https://img.shields.io/badge/React-19-61DAFB?style=for-the-badge&logo=react&logoColor=black)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?style=for-the-badge&logo=typescript&logoColor=white)
-![MySQL](https://img.shields.io/badge/MySQL-8.0-4479A1?style=for-the-badge&logo=mysql&logoColor=white)
+![MySQL](https://img.shields.io/badge/MySQL-RDS-4479A1?style=for-the-badge&logo=mysql&logoColor=white)
 ![Redis](https://img.shields.io/badge/Redis-BullMQ-DC382D?style=for-the-badge&logo=redis&logoColor=white)
 ![Docker](https://img.shields.io/badge/Docker-Isolated_Builds-2496ED?style=for-the-badge&logo=docker&logoColor=white)
-![AWS](https://img.shields.io/badge/AWS-S3+ECS+Fargate-FF9900?style=for-the-badge&logo=amazon-aws&logoColor=white)
-![Cloudflare](https://img.shields.io/badge/Cloudflare-Workers+KV-F38020?style=for-the-badge&logo=cloudflare&logoColor=white)
+![AWS](https://img.shields.io/badge/AWS-EC2+RDS+S3-FF9900?style=for-the-badge&logo=amazon-aws&logoColor=white)
+![Cloudflare](https://img.shields.io/badge/Cloudflare-Workers+KV+Pages-F38020?style=for-the-badge&logo=cloudflare&logoColor=white)
 ![Socket.io](https://img.shields.io/badge/Socket.io-Live_Logs-010101?style=for-the-badge&logo=socket.io&logoColor=white)
 ![License](https://img.shields.io/badge/License-Portfolio-orange?style=for-the-badge)
 ![Status](https://img.shields.io/badge/Status-Live-brightgreen?style=for-the-badge)
@@ -20,6 +20,17 @@ A static-site deployment platform: connect a GitHub repo, push a commit, and a w
 **Isolated per-build containers · Real-time log streaming · Edge-routed subdomains · Per-repo build overrides · Cross-platform lockfile resilience**
 
 Built by **Abdallah Khatib** — Computer Science graduate, Lebanese International University.
+
+---
+
+## 🌐 Live Demo
+
+| | URL |
+|---|---|
+| **Frontend** | [shipyard.shpit.uk](https://shipyard.shpit.uk) |
+| **API** | [api-shipyard.shpit.uk](https://api-shipyard.shpit.uk) |
+
+> The full stack is live — EC2 (Docker + nginx + Certbot), RDS MySQL, Redis Cloud, and Cloudflare Pages + Workers + KV, all wired together and tested end to end against real infrastructure, not a local demo.
 
 ---
 
@@ -52,7 +63,7 @@ Everything that makes that promise trustworthy — actual container isolation, a
 
 Shipyard exists to answer a specific engineering question properly: what does it actually take to run *other people's code* safely, on demand, at low cost? Not "runs a script in a subprocess," but correctly — a fresh container per build, hard CPU/memory/time limits, no network path to anything else running on the host, and unconditional teardown whether the build succeeds, fails, or times out.
 
-It was built backend-first: the webhook receiver, build queue, and container runner proven working end to end before a single page of frontend existed. Every real-world failure encountered along the way — a cross-platform npm lockfile mismatch, a monorepo with no root `package.json`, garbled terminal output from a build tool's own progress spinner, an IAM permissions boundary silently blocking S3 writes — was fixed as a real, distinct bug against real infrastructure, not designed around in the abstract.
+It was built backend-first: the webhook receiver, build queue, and container runner proven working end to end before a single page of frontend existed, then deployed to real production infrastructure — not left as a "works on my machine" demo. Every real-world failure encountered along the way — a cross-platform npm lockfile mismatch, a monorepo with no root `package.json`, garbled terminal output from a build tool's own progress spinner, an IAM permissions boundary silently blocking S3 writes, a shared Redis queue getting raced by two backend instances at once, a memory-starved build container on a 1GB server — was fixed as a real, distinct bug against real infrastructure, not designed around in the abstract.
 
 ---
 
@@ -129,14 +140,16 @@ It was built backend-first: the webhook receiver, build queue, and container run
 
 | Service | Purpose | Status |
 |---|---|---|
-| AWS Fargate | Build compute | **Live** |
-| AWS S3 | Static deployment output storage | **Live** — `shipyard-builds-dev` |
-| AWS ECR | Build-runner Docker image registry | **Live** — `shipyard-build-runner` |
-| Cloudflare (registrar + DNS) | `shpit.uk` domain | **Live** |
+| AWS EC2 (Docker + nginx + Certbot) | Backend host, build compute, reverse proxy, SSL | **Live** — `api-shipyard.shpit.uk` |
+| AWS RDS (MySQL) | Primary relational store, private subnet, not publicly reachable | **Live** |
+| AWS S3 | Static deployment output storage, public-read scoped to `deployments/*` only | **Live** — `shipyard-builds-dev` |
+| Cloudflare Pages | Frontend hosting, auto-deploys from `main` | **Live** — `shipyard.shpit.uk` |
 | Cloudflare Worker + KV | Edge routing — subdomain → S3 prefix lookup, replaces per-deployment DNS records | **Live** — `shipyard-router` / `shipyard_deployments` |
-| Cloudflare Tunnel (named) | Local dev backend exposed at a permanent hostname for GitHub webhook/OAuth callback testing | **Live** — `shipyard-dev.shpit.uk` |
+| Cloudflare (registrar + DNS) | `shpit.uk` domain | **Live** |
+| Cloudflare Tunnel (named) | Local dev backend exposed at a permanent hostname for GitHub webhook/OAuth callback testing — dev only, not part of the production path | **Live**, dev-only — `shipyard-dev.shpit.uk` |
 | Redis Cloud | BullMQ queue, shared with a separate project under a distinct key prefix | **Live** |
-| MySQL (local Docker, dev) | Primary relational store | **Live**, dev-only |
+
+systemd manages the backend process on EC2 (auto-restart on crash, starts on boot); Let's Encrypt/Certbot auto-renews the API's TLS certificate.
 
 ---
 
@@ -144,17 +157,23 @@ It was built backend-first: the webhook receiver, build queue, and container run
 
 - **One build, one container, always.** No container is ever reused across builds or across users. This is the actual security boundary the whole platform rests on, not a performance nicety — reuse would mean one user's build could theoretically observe leftover state from another's.
 
-- **Build queue, not synchronous builds.** A webhook firing enqueues a BullMQ job and returns immediately; the HTTP response never blocks on a build actually running. This matters because builds run on real per-second-billed Fargate compute, not free-tier request handling.
+- **Build queue, not synchronous builds.** A webhook firing enqueues a BullMQ job and returns immediately; the HTTP response never blocks on a build actually running.
+
+- **Builds run on the same host as the API, not a separate compute service.** Dockerode connects to the local Docker daemon on whatever machine the backend process is running on. There is no Fargate/ECS task-launch integration in the current implementation, despite an ECS cluster and ECR repo having been provisioned early on — that infrastructure exists but is unused by the running code. This is called out explicitly rather than left implied, since the tech stack badges could otherwise overstate it. A real next step, if this needed to scale past one server's worth of build capacity, would be to actually wire builds through the ECS/Fargate APIs instead of a local Docker socket.
 
 - **Edge routing over per-deployment DNS.** The original design created one Cloudflare DNS CNAME record per deployment, all pointing at the same S3 website-endpoint root — which meant every subdomain actually served the bucket root, not its own deployment. This was caught in testing and replaced with a Cloudflare Worker + KV namespace: one wildcard DNS record total, with the Worker resolving each subdomain's actual S3 prefix from KV at request time.
 
 - **`npm ci` failures get one, narrow fallback.** If `npm ci` fails for any reason other than a specific, detected lockfile-platform mismatch, it fails the build for real — no blanket catch-all retry. The fallback exists because a lockfile generated on Windows/Mac can legitimately omit Linux-only optional dependencies that a Linux build container needs; that's not a broken repo, it's a real cross-platform gap.
 
-- **Build detection is intentionally narrow.** Only the repo root and a `frontend/` subfolder are ever checked for `package.json` — no recursive scanning of arbitrary directories. Shipyard only ever deploys static frontends, so the detection surface matches exactly what the product does, nothing broader.
+- **Build detection is intentionally narrow.** Only the repo root and a `frontend/` subfolder are ever checked for `package.json` — no recursive scanning of arbitrary directories, matching what the product actually deploys.
 
 - **Output directory overrides are validated, not just accepted.** A user-supplied build override for the output directory is checked against path traversal and rejects anything resolving outside the build workspace or into `.git` — because the repo is cloned using a URL with an embedded, short-lived GitHub access token, and a malicious or careless override could otherwise cause that token to be copied into the public deployment.
 
 - **Log capture is sanitized once, centrally.** Raw container stdout/stderr contains real terminal control sequences (cursor movement, carriage-return-driven progress spinners) that read as garbage if stored or streamed as-is. These are stripped and collapsed at the single point logs are captured from the container, not patched per call site.
+
+- **Only one backend may run against the production Redis queue at a time.** BullMQ workers compete for jobs on a first-come basis; running a local dev backend against the same Redis instance as production causes jobs to be silently grabbed and failed by whichever process reaches them first, with no error surfaced to the user beyond a confusing stuck/failed build. This was hit directly during deployment testing and is the reason local dev defaults to a distinct queue prefix — see Running Locally below.
+
+- **Least-privilege IAM, not "full access and hope."** The production IAM user is scoped to exactly three S3 actions (`PutObject`, `GetObject`, `DeleteObject`) plus `ListBucket`, on exactly one bucket — not the broader managed full-access policies used during early development. ECR and ECS full-access policies were removed entirely once it was confirmed the running code never calls either API.
 
 ---
 
@@ -224,7 +243,10 @@ If `npm ci` is selected and fails specifically due to a package.json/package-loc
 - Build containers: all Linux capabilities dropped, `no-new-privileges` set, isolated bridge network with no route to the host's other services, hard memory/CPU/process caps, hard wall-clock timeout
 - Output directory overrides validated against path traversal to prevent the repo's embedded GitHub token from being copied into a public deployment
 - Per-user concurrent-build and hourly-build-count quotas enforced server-side
-- `trust proxy` correctly configured so rate limiting reads the real client IP behind a reverse tunnel/proxy, not the proxy's own address
+- `trust proxy` correctly configured so rate limiting reads the real client IP behind a reverse proxy, not the proxy's own address
+- Production IAM user scoped to `PutObject`/`GetObject`/`DeleteObject`/`ListBucket` on exactly one S3 bucket — no ECR, no ECS, no other buckets, no full-access managed policies
+- Production database (RDS) is not publicly reachable — only accessible from the backend's own EC2 security group
+- SSH to the backend server is restricted to a known IP, not open to the internet
 - `.env` never committed, enforced via `.gitignore`
 
 ---
@@ -240,7 +262,7 @@ shipyard/
 │   │   │   ├── db.ts                   MySQL pool
 │   │   │   ├── redis.ts                Redis client, BullMQ-prefixed
 │   │   │   ├── passport.ts             GitHub OAuth strategy
-│   │   │   └── aws.ts                  S3 / ECR / ECS clients
+│   │   │   └── aws.ts                  S3 client
 │   │   ├── middleware/
 │   │   │   ├── auth.ts                 requireAuth (JWT verification)
 │   │   │   ├── rateLimiter.ts          Per-user / per-endpoint limits
@@ -266,7 +288,7 @@ shipyard/
 │   │   └── server.ts                    HTTP server, Socket.io init, startup sequence
 │   ├── docker/
 │   │   └── entrypoint.sh                Build-runner container's actual build logic
-│   └── Dockerfile                       Build-runner image, pushed to ECR
+│   └── Dockerfile                       Build-runner image
 │
 └── frontend/
     ├── src/
@@ -319,8 +341,8 @@ shipyard/
 - Node.js 20+
 - Docker Desktop (build containers, and local MySQL)
 - A GitHub OAuth App
-- An AWS account (S3, ECR, ECS/Fargate)
-- A Redis instance (Redis Cloud or local)
+- An AWS account (S3)
+- A Redis instance (Redis Cloud or local) — **use a different `REDIS_QUEUE_PREFIX` than production** (e.g. `shipyard-dev`) if pointing at the same Redis instance production uses, or two backends will race for the same queued jobs
 - A Cloudflare account with a domain, a Worker + KV namespace set up for edge routing, and a named Cloudflare Tunnel for exposing your local backend to GitHub's webhook/OAuth callback
 
 ### 1. Clone and install
@@ -351,8 +373,6 @@ AWS_ACCESS_KEY_ID=...
 AWS_SECRET_ACCESS_KEY=...
 AWS_REGION=us-east-1
 S3_BUCKET_NAME=...
-ECR_REPOSITORY_URI=...
-ECS_CLUSTER_NAME=...
 
 DB_HOST=localhost
 DB_PORT=3306
@@ -363,7 +383,7 @@ DB_NAME=shipyard
 REDIS_HOST=...
 REDIS_PORT=...
 REDIS_PASSWORD=...
-REDIS_QUEUE_PREFIX=shipyard
+REDIS_QUEUE_PREFIX=shipyard-dev
 
 CLOUDFLARE_API_TOKEN=...
 CLOUDFLARE_ZONE_ID=...
@@ -404,7 +424,7 @@ cloudflared tunnel run <your-tunnel-name>
 ```
 
 ### 5. Build-runner image
-The image used by the build runner needs to exist locally (or in ECR, for real Fargate runs):
+The image used by the build runner needs to exist locally on whatever machine runs the backend:
 ```bash
 docker build -t shipyard-build-runner backend/
 ```
@@ -415,18 +435,19 @@ docker build -t shipyard-build-runner backend/
 
 These are deliberate, documented scope decisions — not oversights.
 
-- **No custom domains.** Only `*.shpit.uk` subdomains are supported. Cloudflare's SSL-for-SaaS custom hostname feature is now available on its Free plan and was evaluated, but it carries a real per-domain cost ($2/month) and meaningful additional complexity (ownership verification, per-hostname SSL provisioning, Worker routing changes) that doesn't fit Shipyard's actual positioning as free hosting for people without a domain. If you already have a domain, this isn't trying to replace Vercel/Netlify for you.
+- **No custom domains.** Only `*.shpit.uk` subdomains are supported. Cloudflare's SSL-for-SaaS custom hostname feature is now available on its Free plan and was evaluated, but it carries a real per-domain cost ($2/month) and meaningful additional complexity (ownership verification, per-hostname SSL provisioning, Worker routing changes) that doesn't fit Shipyard's actual positioning as free hosting for people without a domain.
+- **Builds run on a single EC2 host, not real elastic compute.** An ECS cluster and ECR repository were provisioned early in the project, but the running code never calls either API — Dockerode talks to the local Docker daemon on the same box as the API server. This is a real capacity ceiling (one server's worth of concurrent build throughput, and a shared fate between "API is up" and "builds can run"), not an oversight in the README.
 - **No PR/branch preview deployments.** Every push to the connected branch builds and deploys; there's no separate preview-URL-per-pull-request workflow yet.
 - **No one-click rollback.** Old build output remains in S3 and old deployment rows remain in the database, but there's no endpoint or UI to re-point a subdomain at a previous deployment.
 - **No build caching between deploys.** Every build runs `npm ci`/`npm install` from scratch in a fresh container — correct for isolation guarantees, slower than a platform that caches `node_modules` between builds on the same repo.
-- **IAM policies are broader than production-appropriate.** The AWS IAM user currently has full-access managed policies (S3/ECR/ECS) scoped to the whole service rather than just the specific bucket/repo/cluster in use — fine for a dev/portfolio project, a real deployment would tighten this to least-privilege first.
-- **Shared Redis instance.** The BullMQ queue runs on a Redis instance shared with a separate project, isolated only by key prefix rather than a dedicated instance — acceptable at current scale, worth separating if either project's usage grows.
+- **Shared Redis instance.** The BullMQ queue runs on a Redis instance shared with a separate project, isolated by key prefix rather than a dedicated instance. Isolation held up in practice, but running two *backends* (not just two prefixes) against it at once caused real, confusing job-racing during deployment — documented above under Architecture Decisions.
+- **`t3.micro` is a genuine memory constraint.** With MySQL moved to RDS, the backend server has real headroom for build containers, but it's still a 1GB instance — a build with an unusually large `npm install`/build step could still hit the ceiling. `t3.small` is the documented next step if that becomes a recurring problem rather than an edge case.
 
 ---
 
 ## 👨‍💻 About
 
-I'm Abdallah Khatib, a Computer Science graduate from Lebanese International University. Shipyard is a deliberate exercise in building the genuinely hard part of a deployment platform — untrusted code execution, container isolation, and edge routing — rather than another CRUD app with a nice UI on top.
+I'm Abdallah Khatib, a Computer Science graduate from Lebanese International University. Shipyard is a deliberate exercise in building the genuinely hard part of a deployment platform — untrusted code execution, container isolation, and edge routing — and then actually deploying it to real infrastructure, rather than another CRUD app with a nice UI on top left running on a laptop.
 
 Built alongside:
 - **Rakiz** — a multi-currency digital wallet and payment-splitting platform with double-entry bookkeeping and an AI fraud queue
