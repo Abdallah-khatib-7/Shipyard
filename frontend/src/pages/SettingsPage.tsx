@@ -57,7 +57,7 @@ export function SettingsPage() {
           </p>
         </CardContent>
         <CardFooter>
-          <Button onClick={handleSignOut} variant="secondary" size="sm">
+          <Button onClick={handleSignOut} variant="destructive" size="sm">
             <LogOut className="h-3.5 w-3.5" /> Sign out
           </Button>
         </CardFooter>
@@ -66,16 +66,17 @@ export function SettingsPage() {
       <Card className="mt-6">
         <CardHeader>
           <CardTitle className="text-lg">Account limits</CardTitle>
+          <CardDescription>Applies to every repo connected to this account.</CardDescription>
         </CardHeader>
         <CardContent>
-          <dl className="grid grid-cols-2 gap-4 font-mono text-sm">
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
             {LIMITS.map((limit) => (
               <div key={limit.label}>
-                <dt className="text-xs uppercase tracking-[0.08em] text-manifest-faint">{limit.label}</dt>
-                <dd className="mt-1 text-manifest">{limit.value}</dd>
+                <p className="font-mono text-xs uppercase tracking-[0.06em] text-manifest-faint">{limit.label}</p>
+                <p className="mt-1 font-mono text-sm text-manifest">{limit.value}</p>
               </div>
             ))}
-          </dl>
+          </div>
         </CardContent>
       </Card>
     </div>
