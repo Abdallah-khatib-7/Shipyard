@@ -1,11 +1,111 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, Play, Lock, Globe, ExternalLink } from "lucide-react";
+import { ArrowLeft, Play, Lock, Globe, ExternalLink, Check } from "lucide-react";
 import { api, type Repo, type BuildRow, type Deployment } from "@/lib/api";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { BuildStatusBadge } from "@/components/BuildStatusBadge";
 import { formatRelativeTime, shortSha } from "@/lib/utils";
+
+function BuildSettingsForm({ repo, onSaved }: { repo: Repo; onSaved: (repo: Repo) => void }) {
+  const [installCommand, setInstallCommand] = useState(repo.install_command ?? "");
+  const [buildCommand, setBuildCommand] = useState(repo.build_command ?? "");
+  const [outputDir, setOutputDir] = useState(repo.output_dir ?? "");
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const dirty =
+    installCommand !== (repo.install_command ?? "") ||
+    buildCommand !== (repo.build_command ?? "") ||
+    outputDir !== (repo.output_dir ?? "");
+
+  async function handleSave() {
+    setSaving(true);
+    setError(null);
+    try {
+      const { repo: updated } = await api.repos.updateSettings(repo.id, {
+        installCommand: installCommand.trim() || null,
+        buildCommand: buildCommand.trim() || null,
+        outputDir: outputDir.trim() || null,
+      });
+      onSaved(updated);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 1500);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Couldn't save build settings.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Card className="mt-8 p-4">
+      <p className="font-mono text-xs uppercase tracking-[0.08em] text-manifest-faint">build settings</p>
+      <p className="mt-1 text-sm text-manifest-dim">
+        Leave a field blank to auto-detect. Overrides apply to every build after they're saved.
+      </p>
+
+      <div className="mt-4 grid gap-4 sm:grid-cols-2">
+        <div>
+          <Label htmlFor="install-command" className="text-manifest-dim">
+            Install command
+          </Label>
+          <Input
+            id="install-command"
+            value={installCommand}
+            onChange={(e) => setInstallCommand(e.target.value)}
+            placeholder="npm ci"
+            className="mt-1.5 font-mono text-sm"
+          />
+        </div>
+        <div>
+          <Label htmlFor="build-command" className="text-manifest-dim">
+            Build command
+          </Label>
+          <Input
+            id="build-command"
+            value={buildCommand}
+            onChange={(e) => setBuildCommand(e.target.value)}
+            placeholder="npm run build"
+            className="mt-1.5 font-mono text-sm"
+          />
+        </div>
+        <div>
+          <Label htmlFor="output-dir" className="text-manifest-dim">
+            Output directory
+          </Label>
+          <Input
+            id="output-dir"
+            value={outputDir}
+            onChange={(e) => setOutputDir(e.target.value)}
+            placeholder="dist"
+            className="mt-1.5 font-mono text-sm"
+          />
+        </div>
+      </div>
+
+      {error && <p className="mt-3 font-mono text-xs text-hazard">{error}</p>}
+
+      <div className="mt-4 flex items-center gap-3">
+        <Button onClick={handleSave} disabled={!dirty || saving} size="sm">
+          {saved ? (
+            <>
+              <Check className="h-3.5 w-3.5" /> Saved
+            </>
+          ) : saving ? (
+            "Saving…"
+          ) : (
+            "Save"
+          )}
+        </Button>
+        {dirty && !saving && <span className="text-xs text-manifest-faint">unsaved changes</span>}
+      </div>
+    </Card>
+  );
+}
 
 export function RepoPage() {
   const { id } = useParams<{ id: string }>();
@@ -96,7 +196,6 @@ export function RepoPage() {
       <div className="mt-4 flex flex-wrap items-start justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
-            
             {repo.is_private ? (
               <Lock className="h-4 w-4 text-manifest-faint" />
             ) : (
@@ -150,6 +249,8 @@ export function RepoPage() {
           </div>
         </Card>
       )}
+
+      <BuildSettingsForm repo={repo} onSaved={setRepo} />
 
       <div className="mt-8">
         <h2 className="font-display text-xl font-semibold tracking-wide text-manifest">Build history</h2>

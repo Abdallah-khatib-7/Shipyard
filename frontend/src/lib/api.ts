@@ -157,6 +157,10 @@ export const api = {
     listConnected: () => request<{ repos: Repo[] }>("/repos"),
     connect: (fullName: string) =>
       request<{ repo: Repo }>("/repos", { method: "POST", body: JSON.stringify({ fullName }) }),
+    updateSettings: (
+      id: number,
+      updates: { installCommand?: string | null; buildCommand?: string | null; outputDir?: string | null },
+    ) => request<{ repo: Repo }>(`/repos/${id}`, { method: "PATCH", body: JSON.stringify(updates) }),
     disconnect: (id: number) => request<void>(`/repos/${id}`, { method: "DELETE" }),
   },
   builds: {

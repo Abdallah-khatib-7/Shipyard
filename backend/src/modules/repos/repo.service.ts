@@ -107,6 +107,41 @@ export async function connectRepo(userId: number, fullName: string): Promise<Rep
   return created;
 }
 
+export interface RepoSettingsUpdate {
+  installCommand?: string | null;
+  buildCommand?: string | null;
+  outputDir?: string | null;
+}
+
+export async function updateRepoSettings(repoId: number, updates: RepoSettingsUpdate): Promise<RepoRow> {
+  const sets: string[] = [];
+  const values: unknown[] = [];
+
+  if (updates.installCommand !== undefined) {
+    sets.push("install_command = ?");
+    values.push(updates.installCommand);
+  }
+  if (updates.buildCommand !== undefined) {
+    sets.push("build_command = ?");
+    values.push(updates.buildCommand);
+  }
+  if (updates.outputDir !== undefined) {
+    sets.push("output_dir = ?");
+    values.push(updates.outputDir);
+  }
+
+  if (sets.length > 0) {
+    values.push(repoId);
+    await pool.query(`UPDATE repos SET ${sets.join(", ")} WHERE id = ?`, values);
+  }
+
+  const updated = await getRepoById(repoId);
+  if (!updated) {
+    throw new Error("Repo not found after update");
+  }
+  return updated;
+}
+
 export async function disconnectRepo(repoId: number, userId: number): Promise<void> {
   const repo = await getRepoForUser(repoId, userId);
   if (!repo) {
