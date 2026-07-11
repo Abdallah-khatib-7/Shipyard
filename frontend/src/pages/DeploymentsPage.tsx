@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import { Check, Copy } from "lucide-react";
 import { api, type Deployment } from "@/lib/api";
 import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
-import { formatRelativeTime } from "@/lib/utils";
+import { cn, formatRelativeTime } from "@/lib/utils";
 
 interface DeploymentWithRepo extends Deployment {
   repoId: number;
@@ -15,6 +16,7 @@ export function DeploymentsPage() {
   const [deployments, setDeployments] = useState<DeploymentWithRepo[]>([]);
   const [loading, setLoading] = useState(true);
   const [liveOnly, setLiveOnly] = useState(false);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -45,6 +47,22 @@ export function DeploymentsPage() {
     [deployments, liveOnly],
   );
 
+  const grouped = useMemo(() => {
+    const map = new Map<string, DeploymentWithRepo[]>();
+    for (const dep of visible) {
+      const list = map.get(dep.repoFullName) ?? [];
+      list.push(dep);
+      map.set(dep.repoFullName, list);
+    }
+    return Array.from(map.entries());
+  }, [visible]);
+
+  async function handleCopy(id: string, url: string) {
+    await navigator.clipboard.writeText(url);
+    setCopiedId(id);
+    setTimeout(() => setCopiedId((prev) => (prev === id ? null : prev)), 1500);
+  }
+
   return (
     <div>
       <div className="flex flex-wrap items-center justify-between gap-4">
@@ -69,27 +87,58 @@ export function DeploymentsPage() {
             </p>
           </Card>
         ) : (
-          <div className="divide-y divide-line rounded-[3px] border border-line bg-deckplate">
-            {visible.map((d) => (
-              <div key={d.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
-                <div className="min-w-0">
-                  <Link to={`/repos/${d.repoId}`} className="font-mono text-xs text-manifest-dim hover:text-manifest">
-                    {d.repoFullName}
-                  </Link>
-                  <a
-                    href={d.url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="mt-0.5 block truncate font-mono text-sm text-beacon underline-offset-4 hover:underline"
-                  >
-                    {d.url}
-                  </a>
-                </div>
-                <div className="flex items-center gap-3">
-                  {d.isCurrent && <span className="h-1.5 w-1.5 rounded-full bg-beacon animate-pulse-slow" />}
-                  <span className="font-mono text-xs text-manifest-faint">
-                    {d.isCurrent ? "live" : "superseded"} · {formatRelativeTime(d.createdAt)}
-                  </span>
+          <div className="space-y-6">
+            {grouped.map(([repoFullName, deps]) => (
+              <div key={repoFullName}>
+                <Link
+                  to={`/repos/${deps[0].repoId}`}
+                  className="font-mono text-xs uppercase tracking-[0.08em] text-manifest-faint hover:text-manifest"
+                >
+                  {repoFullName}
+                </Link>
+                <div className="mt-2 divide-y divide-line rounded-[3px] border border-line bg-deckplate">
+                  {deps.map((dep) => (
+                    <div
+                      key={dep.id}
+                      className={cn("flex items-center justify-between gap-3 px-4 py-3", !dep.isCurrent && "opacity-60")}
+                    >
+                      <div className="min-w-0 flex items-center gap-2.5">
+                        <span
+                          className={cn(
+                            "h-1.5 w-1.5 shrink-0 rounded-full",
+                            dep.isCurrent ? "bg-beacon animate-pulse-slow" : "bg-manifest-faint",
+                          )}
+                        />
+                        <a
+                          href={dep.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="truncate font-mono text-sm text-manifest hover:text-beacon"
+                        >
+                          {dep.url.replace(/^https?:\/\//, "")}
+                        </a>
+                        {dep.isCurrent && (
+                          <span className="shrink-0 font-mono text-[10px] uppercase tracking-[0.06em] text-beacon">
+                            current
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex shrink-0 items-center gap-3">
+                        <span className="font-mono text-xs text-manifest-faint">{formatRelativeTime(dep.createdAt)}</span>
+                        <button
+                          onClick={() => handleCopy(dep.id, dep.url)}
+                          aria-label="Copy deployment URL"
+                          className="text-manifest-faint hover:text-manifest"
+                        >
+                          {copiedId === dep.id ? (
+                            <Check className="h-3.5 w-3.5 text-beacon" />
+                          ) : (
+                            <Copy className="h-3.5 w-3.5" />
+                          )}
+                        </button>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
             ))}
