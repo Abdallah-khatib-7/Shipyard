@@ -1,18 +1,22 @@
 import type { Request, Response } from "express";
 import { getUserById, type PublicUser } from "./auth.service.js";
 import { signAccessToken, issueRefreshToken, rotateRefreshToken, revokeRefreshToken, InvalidRefreshTokenError } from "./token.service.js";
+import { env } from "../../config/env.js";
 
 export async function githubCallback(req: Request, res: Response): Promise<void> {
   const user = req.user as PublicUser | undefined;
   if (!user) {
-    res.status(401).json({ error: "GitHub authentication failed" });
+    res.redirect(`${env.frontendUrl}/auth/callback?error=github_auth_failed`);
     return;
   }
 
   const accessToken = signAccessToken(user.id);
   const refreshToken = await issueRefreshToken(user.id);
 
-  res.json({ accessToken, refreshToken, user });
+  const redirectUrl = new URL("/auth/callback", env.frontendUrl);
+  redirectUrl.searchParams.set("accessToken", accessToken);
+  redirectUrl.searchParams.set("refreshToken", refreshToken);
+  res.redirect(redirectUrl.toString());
 }
 
 export async function refresh(req: Request, res: Response): Promise<void> {
