@@ -1,11 +1,18 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { ArrowLeft } from "lucide-react";
-import { api, type BuildDetail, type BuildStatus, type Deployment } from "@/lib/api";
+import { ArrowLeft, ExternalLink } from "lucide-react";
+import { api, type BuildDetail, type BuildStatus, type Deployment, type Repo } from "@/lib/api";
 import { LogStream } from "@/components/LogStream";
 import { BuildStatusBadge } from "@/components/BuildStatusBadge";
 import { Card } from "@/components/ui/card";
-import { shortSha } from "@/lib/utils";
+import { formatRelativeTime, shortSha } from "@/lib/utils";
+
+function formatDuration(startedAt: string | null, finishedAt: string | null): string | null {
+  if (!startedAt || !finishedAt) return null;
+  const seconds = Math.round((new Date(finishedAt).getTime() - new Date(startedAt).getTime()) / 1000);
+  if (seconds < 60) return `${seconds}s`;
+  return `${Math.floor(seconds / 60)}m ${seconds % 60}s`;
+}
 
 export function BuildPage() {
   const { id } = useParams<{ id: string }>();
@@ -13,6 +20,7 @@ export function BuildPage() {
 
   const [build, setBuild] = useState<BuildDetail | null>(null);
   const [status, setStatus] = useState<BuildStatus | null>(null);
+  const [repo, setRepo] = useState<Repo | null>(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [deployment, setDeployment] = useState<Deployment | null>(null);
@@ -25,6 +33,10 @@ export function BuildPage() {
         if (cancelled) return;
         setBuild(b);
         setStatus(b.status);
+        return api.repos.listConnected().then(({ repos }) => {
+          if (cancelled) return;
+          setRepo(repos.find((r) => r.id === b.repoId) ?? null);
+        });
       })
       .catch(() => setNotFound(true))
       .finally(() => !cancelled && setLoading(false));
@@ -64,6 +76,8 @@ export function BuildPage() {
     );
   }
 
+  const duration = formatDuration(build.startedAt, build.finishedAt);
+
   return (
     <div>
       <Link
@@ -78,6 +92,7 @@ export function BuildPage() {
           <h1 className="font-mono text-2xl text-manifest">
             {build.branch} <span className="text-route">@ {shortSha(build.commitSha)}</span>
           </h1>
+          {repo && <p className="mt-1 font-mono text-xs text-manifest-dim">{repo.full_name}</p>}
         </div>
         <BuildStatusBadge status={status} />
       </div>
@@ -87,6 +102,36 @@ export function BuildPage() {
           {build.errorMessage}
         </p>
       )}
+
+      <Card className="mt-4 grid grid-cols-2 gap-4 p-4 sm:grid-cols-4">
+        <div>
+          <p className="font-mono text-xs uppercase tracking-[0.06em] text-manifest-faint">commit</p>
+          {repo ? (
+            <a
+              href={`https://github.com/${repo.full_name}/commit/${build.commitSha}`}
+              target="_blank"
+              rel="noreferrer"
+              className="mt-1 inline-flex items-center gap-1 font-mono text-sm text-route hover:underline"
+            >
+              {shortSha(build.commitSha)} <ExternalLink className="h-3 w-3" />
+            </a>
+          ) : (
+            <p className="mt-1 font-mono text-sm text-manifest">{shortSha(build.commitSha)}</p>
+          )}
+        </div>
+        <div>
+          <p className="font-mono text-xs uppercase tracking-[0.06em] text-manifest-faint">started</p>
+          <p className="mt-1 font-mono text-sm text-manifest">{formatRelativeTime(build.startedAt)}</p>
+        </div>
+        <div>
+          <p className="font-mono text-xs uppercase tracking-[0.06em] text-manifest-faint">finished</p>
+          <p className="mt-1 font-mono text-sm text-manifest">{formatRelativeTime(build.finishedAt)}</p>
+        </div>
+        <div>
+          <p className="font-mono text-xs uppercase tracking-[0.06em] text-manifest-faint">duration</p>
+          <p className="mt-1 font-mono text-sm text-manifest">{duration ?? "—"}</p>
+        </div>
+      </Card>
 
       {deployment && (
         <Card className="mt-4 p-4">
