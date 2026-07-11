@@ -24,6 +24,16 @@ else
   git checkout -q "$COMMIT_SHA"
 fi
 
+if [ -f package.json ]; then
+  : # build from the repo root (existing behavior)
+elif [ -f frontend/package.json ]; then
+  echo "[shipyard] no package.json at repo root, building from frontend/"
+  cd frontend
+else
+  echo "SHIPYARD_FATAL: No package.json found at the repo root or in frontend/. Shipyard only builds static frontend projects - if your project lives in a different folder, that's not supported yet." >&2
+  exit 1
+fi
+
 INSTALL_CMD="${INSTALL_COMMAND:-}"
 BUILD_CMD="${BUILD_COMMAND:-}"
 OUT_DIR="${OUTPUT_DIR:-dist}"
