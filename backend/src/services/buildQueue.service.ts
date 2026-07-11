@@ -133,9 +133,10 @@ async function processBuildJob(job: Job<BuildJobData>): Promise<void> {
     }
 
     if (result.exitCode !== 0 || !result.outputLocalDir) {
+      const fatal = extractFatalError(accumulatedLog);
       await updateBuildStatus(buildId, "failed", {
         log: accumulatedLog,
-        errorMessage: `Build exited with code ${result.exitCode}`,
+        errorMessage: fatal ?? `Build exited with code ${result.exitCode}`,
         finished: true,
       });
       return;
