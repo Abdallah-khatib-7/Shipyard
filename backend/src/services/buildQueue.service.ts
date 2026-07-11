@@ -36,6 +36,14 @@ export async function enqueueBuild(buildId: string): Promise<void> {
   );
 }
 
+// Entrypoint script prefixes unrecoverable, user-facing errors (e.g. no
+// package.json found) with this marker so we can surface the specific
+// message instead of a generic "exited with code N".
+function extractFatalError(log: string): string | null {
+  const match = log.match(/^SHIPYARD_FATAL: (.+)$/m);
+  return match ? match[1] : null;
+}
+
 async function getBuildById(buildId: string): Promise<BuildRow | null> {
   const [rows] = await pool.query<BuildRow[]>("SELECT * FROM builds WHERE id = ?", [buildId]);
   return rows[0] ?? null;
